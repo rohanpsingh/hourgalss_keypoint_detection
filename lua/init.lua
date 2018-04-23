@@ -20,8 +20,8 @@ function loadImage()
     local img = image.minmax{tensor = rgb}
     local out = image.toDisplayTensor{img}
     --print(torch.typename(out))
-    image.save("test.jpg", out)
-    print("saved image")
+    --image.save("test.jpg", out)
+    --print("saved image")
 end
 
 
@@ -32,8 +32,8 @@ function loadModel(model)
     else
         m = torch.load(model)   -- Load the specified model
         m:evaluate()
-        print("loading model: ", model)
     end
+    print("loading model: ", model)
     m:cuda()
 end
 
