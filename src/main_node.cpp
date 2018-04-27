@@ -10,7 +10,7 @@
 #include <opencv2/highgui/highgui.hpp>
 //#include <opencv2/core/core.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <opencv_apps/Point2DArray.h>
+#include <opencv_apps/Point2DArrayStamped.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -103,7 +103,7 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
     float* kpts = THFloatTensor_data(keypointTensor);
     int num_of_keypoint = THFloatTensor_size(keypointTensor,0);
 
-    opencv_apps::Point2DArray pt_array_msg;
+    opencv_apps::Point2DArrayStamped pt_array_msg;
     cv::Mat keypoint_img = read_image.clone();
     for (unsigned int i = 0; i < num_of_keypoint*2; i++) {
         cv::Point pt;
@@ -122,6 +122,7 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
         i++;
     }
 
+    pt_array_msg.header.stamp = img->header.stamp;
     keypoint_pos.publish(pt_array_msg);
 
     sensor_msgs::ImagePtr img_pub_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", keypoint_img).toImageMsg();
@@ -164,7 +165,7 @@ int main (int argc, char** argv){
     image_transport::ImageTransport it(priv_nh);
     image_keypoints = it.advertise("keypoints",1);
 
-    keypoint_pos = priv_nh.advertise<opencv_apps::Point2DArray>("keypoint_pos", 1);
+    keypoint_pos = priv_nh.advertise<opencv_apps::Point2DArrayStamped>("keypoint_pos", 1);
 
     message_filters::Subscriber<sensor_msgs::Image> img_sub(priv_nh, "input_image", 1);
     message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes> box_sub(priv_nh, "input_bbox", 1);
