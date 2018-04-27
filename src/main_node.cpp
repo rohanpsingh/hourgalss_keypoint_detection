@@ -1,5 +1,6 @@
 #include <ros/ros.h>
 #include <iostream>
+#include <chrono>
 #include <boost/thread/thread.hpp>
 #include <Eigen/Dense>
 
@@ -9,6 +10,7 @@
 #include <opencv2/highgui/highgui.hpp>
 //#include <opencv2/core/core.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <opencv_apps/Point2DArray.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -24,11 +26,14 @@ extern "C" {
 
 
 image_transport::Publisher image_keypoints;
+ros::Publisher keypoint_pos;
 lua_State *L;
 
 
 
 void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::BoundingBoxesConstPtr& box){
+
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
     cv::Mat read_image, image;
     try{
@@ -41,6 +46,7 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
 
     cv::Mat img_bgr[3];
     cv::split(image, img_bgr);
+
 
     const int height = read_image.rows;
     const int width = read_image.cols;
@@ -75,13 +81,15 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
     lua_pcall(L,0,0,0);
 
 
+
     const int xmin = box->bounding_boxes[0].xmin;
     const int xmax = box->bounding_boxes[0].xmax;
     const int ymin = box->bounding_boxes[0].ymin;
     const int ymax = box->bounding_boxes[0].ymax;
     int cx = abs(xmax+xmin)/2;
     int cy = abs(ymax+ymin)/2;
-    float scale = std::max(xmax-xmin, ymax-ymin)/200;
+    float scale = std::max(xmax-xmin, ymax-ymin);
+    scale /= 200.0f;
 
     lua_getglobal(L, "evaluate");
     lua_pushinteger(L,cx);
@@ -90,25 +98,41 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
     lua_pcall(L,3,0,1);
 
     lua_getglobal(L, "keypoint_locs");
+
     THFloatTensor* keypointTensor = (THFloatTensor*)luaT_toudata(L, -1, "torch.FloatTensor");
     float* kpts = THFloatTensor_data(keypointTensor);
-
     int num_of_keypoint = THFloatTensor_size(keypointTensor,0);
 
+    opencv_apps::Point2DArray pt_array_msg;
     cv::Mat keypoint_img = read_image.clone();
     for (unsigned int i = 0; i < num_of_keypoint*2; i++) {
         cv::Point pt;
         pt.x = *(kpts+i);
         pt.y = *(kpts+i+1);
         float rd = 5;
-        cv::circle(keypoint_img, pt, rd, cv::Scalar(0,255,0), -1);
+        if (pt != cv::Point(-1,-1)) {
+            cv::circle(keypoint_img, pt, rd, cv::Scalar(0,255,0), -1);
+            cv::putText(keypoint_img, std::to_string(i/2), pt, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,0,0), 3);
+        }
+
+        opencv_apps::Point2D op;
+        op.x = pt.x;
+        op.y = pt.y;
+        pt_array_msg.points.push_back(op);
         i++;
     }
+
+    keypoint_pos.publish(pt_array_msg);
 
     sensor_msgs::ImagePtr img_pub_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", keypoint_img).toImageMsg();
     image_keypoints.publish(img_pub_msg);
 
     lua_gc(L, LUA_GCCOLLECT, 0);
+
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+    std::cout << "callBack time: " << duration/1000 << " ms" << std::endl;
     return;
 }
 
@@ -139,6 +163,8 @@ int main (int argc, char** argv){
 
     image_transport::ImageTransport it(priv_nh);
     image_keypoints = it.advertise("keypoints",1);
+
+    keypoint_pos = priv_nh.advertise<opencv_apps::Point2DArray>("keypoint_pos", 1);
 
     message_filters::Subscriber<sensor_msgs::Image> img_sub(priv_nh, "input_image", 1);
     message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes> box_sub(priv_nh, "input_bbox", 1);
