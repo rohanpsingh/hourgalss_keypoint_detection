@@ -2,6 +2,9 @@ print("Initalizing lua scripts...")
 --------------------------------------------------------------------------------
 -- Initialization
 --------------------------------------------------------------------------------
+require 'torch'
+torch.setnumthreads(1)
+
 require 'paths'
 paths.dofile('util.lua')
 paths.dofile('img.lua')
@@ -12,6 +15,9 @@ inImage_c3 = torch.FloatTensor()
 inImage = torch.FloatTensor()
 
 predHMs = torch.Tensor(1,6,64,64)
+
+local min_hm_thresh = 0.5
+
 
 function loadImage()
 
@@ -66,8 +72,13 @@ function evaluate(img_cx, img_cy, img_scale)
         local best_col = bestColumn_per_row[best_row[1][1]]
         local kpy = best_row[1][1]/64*200*scale + center[2] - scale*100
         local kpx = best_col[1]/64*200*scale + center[1] - scale*100
-        keypoint_locs[i][1] = kpx
-        keypoint_locs[i][2] = kpy
+        if best_p[1][1] > min_hm_thresh then
+            keypoint_locs[i][1] = kpx
+            keypoint_locs[i][2] = kpy
+        else
+            keypoint_locs[i][1] = -1
+            keypoint_locs[i][2] = -1
+        end
     end
 
     --print(keypoint_locs)

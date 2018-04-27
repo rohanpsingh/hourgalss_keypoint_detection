@@ -14,42 +14,6 @@ require 'cudnn'
 torch.setdefaulttensortype('torch.FloatTensor')
 
 
-
-function loadAnnotations(dataset,set)
-
-
-    -- Load up a set of annotations for either: 'train', 'valid', or 'test'
-    -- There is no part information in 'test'
-
-    local a = hdf5.open('data/' .. dataset .. '/annot/' .. set .. '.h5')
-    annot = {}
-
-    -- Read in annotation information from hdf5 file
-    local tags = {'center','scale'}
-    for _,tag in ipairs(tags) do annot[tag] = a:read(tag):all() end
-    annot.nsamples = annot.center:size()[1]
-    a:close()
-
-    -- Load in image file names
-    -- (workaround for not being able to read the strings in the hdf5 file)
-    annot.images = {}
-    local toIdxs = {}
-    local namesFile = io.open('data/' .. dataset .. '/annot/' .. set .. '_images.txt')
-    local idx = 1
-    for line in namesFile:lines() do
-        annot.images[idx] = line
-        if not toIdxs[line] then toIdxs[line] = {} end
-        table.insert(toIdxs[line], idx)
-        idx = idx + 1
-    end
-    namesFile:close()
-
-    -- This allows us to reference all people who are in the same image
-    annot.imageToIdxs = toIdxs
-
-    return annot
-end
-
 function getPreds(hms, center, scale)
     if hms:size():size() == 3 then hms = hms:view(1, hms:size(1), hms:size(2), hms:size(3)) end
 
