@@ -2,6 +2,7 @@ print("Initalizing lua scripts...")
 --------------------------------------------------------------------------------
 -- Initialization
 --------------------------------------------------------------------------------
+require 'sys'
 require 'torch'
 torch.setnumthreads(1)
 
@@ -54,11 +55,13 @@ function evaluate(img_cx, img_cy, img_scale)
     local inp = crop(im, center, scale, 0, 256)
 
     -- Get network output
+    sys.tic()
     local out = m:forward(inp:view(1,3,256,256):cuda())
     out = applyFn(function (x) return x:clone() end, out)
-    local flippedOut = m:forward(flip(inp:view(1,3,256,256):cuda()))
-    flippedOut = applyFn(function (x) return flip(shuffleLR(x)) end, flippedOut)
-    out = applyFn(function (x,y) return x:add(y):div(2) end, out, flippedOut)
+    --flip(inp:view(1,3,256,256))
+    --local flippedOut = m:forward(flip(inp:view(1,3,256,256)))
+    --flippedOut = applyFn(function (x) return flip(shuffleLR(x)) end, flippedOut)
+    --out = applyFn(function (x,y) return x:add(y):div(2) end, out, flippedOut)
     cutorch.synchronize()
 
     predHMs:copy(out[#out])
@@ -81,7 +84,8 @@ function evaluate(img_cx, img_cy, img_scale)
         end
     end
 
-    --print(keypoint_locs)
+    --t = sys.toc()
+    --print(t*1000)
 
     collectgarbage()
 
