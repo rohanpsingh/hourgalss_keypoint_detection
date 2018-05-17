@@ -1,6 +1,6 @@
-project(detection-hg)
+project(detection_hg)
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++14" )
 
 set(LUA_INCLUDE_DIR /home/rohan/torch/install/include/)
 set(LUA_LIBRARY /home/rohan/torch/install/lib/libluajit.so /home/rohan/torch/install/lib/libluaT.so /home/rohan/torch/install/lib/libTH.so)
@@ -15,8 +15,13 @@ find_package(catkin REQUIRED COMPONENTS
     cv_bridge
     image_transport
     darknet_ros_msgs
+    dynamic_reconfigure
     )
 find_package(OpenCV REQUIRED)
+
+generate_dynamic_reconfigure_options(
+  cfg/param.cfg
+)
 
 
 include_directories(include
@@ -32,6 +37,7 @@ catkin_package(
         sensor_msgs
         geometry_msgs
         message_runtime
+	dynamic_reconfigure
 )
 
 link_directories(${PCL_LIBRARY_DIRS})

@@ -15,9 +15,9 @@ inImage_c2 = torch.FloatTensor()
 inImage_c3 = torch.FloatTensor()
 inImage = torch.FloatTensor()
 
-predHMs = torch.Tensor(1,6,64,64)
 
-local min_hm_thresh = 0.5
+num_keypoints = 0
+min_hm_thresh = 0
 
 
 function loadImage()
@@ -64,9 +64,11 @@ function evaluate(img_cx, img_cy, img_scale)
     --out = applyFn(function (x,y) return x:add(y):div(2) end, out, flippedOut)
     cutorch.synchronize()
 
+    predHMs = torch.Tensor(1,num_keypoints,64,64)
     predHMs:copy(out[#out])
 
     keypoint_locs = torch.Tensor(predHMs:size(2), 2)
+    heatmap_peaks = torch.Tensor(predHMs:size(2), 1)
 
     for i=1,predHMs:size(2) do
         local kp = predHMs:select(2,i):select(1,1)
@@ -75,6 +77,7 @@ function evaluate(img_cx, img_cy, img_scale)
         local best_col = bestColumn_per_row[best_row[1][1]]
         local kpy = best_row[1][1]/64*200*scale + center[2] - scale*100
         local kpx = best_col[1]/64*200*scale + center[1] - scale*100
+        heatmap_peaks[i][1] = best_p[1][1]
         if best_p[1][1] > min_hm_thresh then
             keypoint_locs[i][1] = kpx
             keypoint_locs[i][2] = kpy
