@@ -161,16 +161,17 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
     }
     if (pub_hms) {
         std_msgs::Float32MultiArray hm_msg;
-	hm_msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
+        hm_msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
       	hm_msg.layout.dim[0].label = "kp_peaks";
-	hm_msg.layout.dim[0].size = max_kps;
-	hm_msg.layout.dim[0].stride = 1;
-	hm_msg.layout.data_offset = 0;
-	hm_msg.data = hm_peaks_vec;
+        hm_msg.layout.dim[0].size = max_kps;
+        hm_msg.layout.dim[0].stride = 1;
+        hm_msg.layout.data_offset = 0;
+        hm_msg.data = hm_peaks_vec;
         keypoint_hms.publish(hm_msg);
     }
 
     lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_settop(L, 0);
 
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
 
