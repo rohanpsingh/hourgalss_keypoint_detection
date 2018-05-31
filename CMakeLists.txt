@@ -2,8 +2,8 @@ project(detection_hg)
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++14" )
 
-set(LUA_INCLUDE_DIR /home/rohan/torch/install/include/)
-set(LUA_LIBRARY /home/rohan/torch/install/lib/libluajit.so /home/rohan/torch/install/lib/libluaT.so /home/rohan/torch/install/lib/libTH.so)
+set(LUA_INCLUDE_DIR ~/torch/install/include/)
+set(LUA_LIBRARY ~/torch/install/lib/libluajit.so ~/torch/install/lib/libluaT.so ~/torch/install/lib/libTH.so)
 
 find_package(PCL 1.7 REQUIRED)
 

@@ -10,7 +10,7 @@
 
     <rosparam subst_value="true">
     max_keypoints: 20
-    pkg_dir: /home/rohan/rohan_m15x/ros_ws/src/detection_hg/
+    pkg_dir: $(find detection_hg)
     nn_modle_weights: model.t7
     vis_out: true
     pub_hms: true
