@@ -6,7 +6,6 @@ set(LUA_INCLUDE_DIR ~/torch/install/include/)
 set(LUA_LIBRARY ~/torch/install/lib/libluajit.so ~/torch/install/lib/libluaT.so ~/torch/install/lib/libTH.so)
 
 find_package(PCL 1.7 REQUIRED)
-
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     std_msgs
@@ -16,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
     image_transport
     darknet_ros_msgs
     dynamic_reconfigure
+    message_generation
     )
 find_package(OpenCV REQUIRED)
 
@@ -23,6 +23,15 @@ generate_dynamic_reconfigure_options(
   cfg/param.cfg
 )
 
+add_message_files(
+  FILES
+  KeyPointConfidenceArray.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 include_directories(include
     ${PCL_INCLUDE_DIRS}
@@ -39,6 +48,7 @@ catkin_package(
         message_runtime
 	dynamic_reconfigure
 )
+
 
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})

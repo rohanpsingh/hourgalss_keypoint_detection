@@ -11,7 +11,7 @@
 //#include <opencv2/core/core.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv_apps/Point2DArrayStamped.h>
-#include <std_msgs/Float32MultiArray.h>
+#include <detection_hg/KeyPointConfidenceArray.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -160,6 +160,7 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
         image_keypoints.publish(img_pub_msg);
     }
     if (pub_hms) {
+        detection_hg::KeyPointConfidenceArray kp_msg;
         std_msgs::Float32MultiArray hm_msg;
         hm_msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
       	hm_msg.layout.dim[0].label = "kp_peaks";
@@ -167,7 +168,9 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
         hm_msg.layout.dim[0].stride = 1;
         hm_msg.layout.data_offset = 0;
         hm_msg.data = hm_peaks_vec;
-        keypoint_hms.publish(hm_msg);
+	kp_msg.array = hm_msg;
+	kp_msg.header = img->header;
+        keypoint_hms.publish(kp_msg);
     }
 
     lua_gc(L, LUA_GCCOLLECT, 0);
@@ -237,7 +240,7 @@ int main (int argc, char** argv){
 
     image_keypoints = image_transport::ImageTransport(priv_nh).advertise("keypoints",1);
     keypoint_pos = priv_nh.advertise<opencv_apps::Point2DArrayStamped>("keypoint_pos", 1);
-    keypoint_hms = priv_nh.advertise<std_msgs::Float32MultiArray>("keypoint_hms", 1);
+    keypoint_hms = priv_nh.advertise<detection_hg::KeyPointConfidenceArray>("keypoint_hms", 1);
 
     message_filters::Subscriber<sensor_msgs::Image> img_sub(priv_nh, "input_image", 1);
     message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes> box_sub(priv_nh, "input_bbox", 1);
