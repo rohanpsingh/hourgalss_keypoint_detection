@@ -15,8 +15,6 @@
     max_keypoints: 20
     pkg_dir: $(find detection_hg)
     nn_model_weights: $(arg model_weight_file)
-    vis_out: true
-    pub_hms: true
     </rosparam>
     </node>
 

@@ -10,8 +10,7 @@
 #include <opencv2/highgui/highgui.hpp>
 //#include <opencv2/core/core.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <opencv_apps/Point2DArrayStamped.h>
-#include <detection_hg/KeyPointConfidenceArray.h>
+#include <object_keypoint_msgs/ObjectKeyPointArray.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -30,8 +29,7 @@ extern "C" {
 
 //ros pubs
 image_transport::Publisher image_keypoints;
-ros::Publisher keypoint_hms;
-ros::Publisher keypoint_pos;
+ros::Publisher keypoint_pub;
 
 //lua state
 lua_State *L;
@@ -44,8 +42,6 @@ int circle_rad;
 int vis_kp_ind;
 
 //rosparams
-bool vis_out;
-bool pub_hms;
 int max_kps;
 
 void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::BoundingBoxesConstPtr& box){
@@ -126,11 +122,8 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
         ROS_ERROR("something terrible has happened!!");
         return;
     }
-    std::vector<float> hm_peaks_vec;
-    for (unsigned int i = 0; i < max_kps; i++)
-      hm_peaks_vec.push_back(*(hmps+i));
     
-    opencv_apps::Point2DArrayStamped pt_array_msg;
+    object_keypoint_msgs::ObjectKeyPoints obj_kps;
     cv::Mat keypoint_img = read_image.clone();
     for (unsigned int i = 0; i < num_of_keypoint_vis*2; i++) {
         if (vis_kp_ind != -1)
@@ -145,33 +138,21 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
             cv::putText(keypoint_img, std::to_string(i/2), pt, cv::FONT_HERSHEY_SIMPLEX, font_scale, cv::Scalar(255,0,0), font_thick);
         }
 
-        opencv_apps::Point2D op;
-        op.x = pt.x;
-        op.y = pt.y;
-        pt_array_msg.points.push_back(op);
+        object_keypoint_msgs::KeyPoint kp;
+        kp.position.x = pt.x;
+	kp.position.y = pt.y;
+	kp.confidence = (*(hmps+i/2));
+	obj_kps.keypoint.push_back(kp);
         i++;
     }
 
-    pt_array_msg.header.stamp = img->header.stamp;
-    keypoint_pos.publish(pt_array_msg);
+    object_keypoint_msgs::ObjectKeyPointArray pt_array_msg;
+    pt_array_msg.header = img->header;
+    pt_array_msg.object.push_back(obj_kps);
+    keypoint_pub.publish(pt_array_msg);
 
-    if (vis_out) {
-        sensor_msgs::ImagePtr img_pub_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", keypoint_img).toImageMsg();
-        image_keypoints.publish(img_pub_msg);
-    }
-    if (pub_hms) {
-        detection_hg::KeyPointConfidenceArray kp_msg;
-        std_msgs::Float32MultiArray hm_msg;
-        hm_msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
-      	hm_msg.layout.dim[0].label = "kp_peaks";
-        hm_msg.layout.dim[0].size = max_kps;
-        hm_msg.layout.dim[0].stride = 1;
-        hm_msg.layout.data_offset = 0;
-        hm_msg.data = hm_peaks_vec;
-	kp_msg.array = hm_msg;
-	kp_msg.header = img->header;
-        keypoint_hms.publish(kp_msg);
-    }
+    sensor_msgs::ImagePtr img_pub_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", keypoint_img).toImageMsg();
+    image_keypoints.publish(img_pub_msg);
 
     lua_gc(L, LUA_GCCOLLECT, 0);
     lua_settop(L, 0);
@@ -209,8 +190,6 @@ int main (int argc, char** argv){
     priv_nh.param("max_keypoints", max_kps, int(20));
     priv_nh.param("nn_model_weights", nn_model_weights, std::string("model.t7"));
     priv_nh.param("pkg_dir", pkg_dir, std::string("~/detection_hg"));    
-    priv_nh.param("vis_out", vis_out, bool(false));
-    priv_nh.param("pub_hms", pub_hms, bool(false));
 
     L = luaL_newstate();
     std::cout << "------lua loading libraries----- " << std::endl;
@@ -238,9 +217,8 @@ int main (int argc, char** argv){
 
 
 
-    image_keypoints = image_transport::ImageTransport(priv_nh).advertise("keypoints",1);
-    keypoint_pos = priv_nh.advertise<opencv_apps::Point2DArrayStamped>("keypoint_pos", 1);
-    keypoint_hms = priv_nh.advertise<detection_hg::KeyPointConfidenceArray>("keypoint_hms", 1);
+    image_keypoints = image_transport::ImageTransport(priv_nh).advertise("keypoints_img",1);
+    keypoint_pub = priv_nh.advertise<object_keypoint_msgs::ObjectKeyPointArray>("keypoints_dat", 1);
 
     message_filters::Subscriber<sensor_msgs::Image> img_sub(priv_nh, "input_image", 1);
     message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes> box_sub(priv_nh, "input_bbox", 1);

@@ -16,16 +16,12 @@ find_package(catkin REQUIRED COMPONENTS
     darknet_ros_msgs
     dynamic_reconfigure
     message_generation
+    object_keypoint_msgs
     )
 find_package(OpenCV REQUIRED)
 
 generate_dynamic_reconfigure_options(
   cfg/param.cfg
-)
-
-add_message_files(
-  FILES
-  KeyPointConfidenceArray.msg
 )
 
 generate_messages(
@@ -47,6 +43,7 @@ catkin_package(
         geometry_msgs
         message_runtime
 	dynamic_reconfigure
+	object_keypoint_msgs
 )
 
 
