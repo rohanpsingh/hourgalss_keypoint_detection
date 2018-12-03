@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
     dynamic_reconfigure
     message_generation
     object_keypoint_msgs
+    roseus
     )
 find_package(OpenCV REQUIRED)
 
@@ -44,6 +45,7 @@ catkin_package(
         message_runtime
 	dynamic_reconfigure
 	object_keypoint_msgs
+	roseus
 )
 
 

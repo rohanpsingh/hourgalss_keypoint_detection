@@ -19,6 +19,8 @@
 #include <dynamic_reconfigure/server.h>
 #include <detection_hg/paramConfig.h>
 
+#include <roseus/StringString.h>
+
 extern "C" {
     #include <lua.h>
     #include <lualib.h>
@@ -33,6 +35,7 @@ ros::Publisher keypoint_pub;
 
 //lua state
 lua_State *L;
+bool model_load_success = false;
 
 //ros dynamic params
 float min_hm_thresh;
@@ -43,10 +46,18 @@ int vis_kp_ind;
 
 //rosparams
 int max_kps;
+std::string nn_model_weights;
+std::string pkg_dir;
+
 
 void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::BoundingBoxesConstPtr& box){
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
+    if (!model_load_success){
+      std::cout << "model not loaded successfully" << std::endl;
+      return;
+    }
 
     cv::Mat read_image, image;
     try{
@@ -179,13 +190,29 @@ void setDynParams(detection_hg::paramConfig &config, int level) {
     return;
 }
 
+bool serviceCallback(roseus::StringString::Request& request, roseus::StringString::Response& response){
+
+    std::string filename = request.str;
+    lua_getglobal(L, "loadModel");
+    lua_pushstring(L, filename.c_str());
+    int model_load = lua_pcall(L, 1, 0 ,0);
+    if (model_load) {
+        fprintf(stderr, "Failed to load model: %s\n", lua_tostring(L, -1));
+        model_load_success = false;
+	return false;
+    }
+    else {
+        std::cout << "------model load success----- " << std::endl;
+	model_load_success = true;
+    }
+
+    return true;
+}
+
 int main (int argc, char** argv){
 
     ros::init(argc, argv, "detect");
     ros::NodeHandle priv_nh("~");
-
-    std::string nn_model_weights;
-    std::string pkg_dir;
 
     priv_nh.param("max_keypoints", max_kps, int(20));
     priv_nh.param("nn_model_weights", nn_model_weights, std::string("model.t7"));
@@ -202,20 +229,11 @@ int main (int argc, char** argv){
         exit(1);
     }
     
-    lua_getglobal(L, "loadModel");
-    lua_pushstring(L, (pkg_dir + nn_model_weights).c_str());
-    int model_load = lua_pcall(L, 1, 0 ,0);
-    if (model_load) {
-        fprintf(stderr, "Failed to load model: %s\n", lua_tostring(L, -1));
-        exit(1);
-    }
-    else
-        std::cout << "------model load success----- " << std::endl;
-
     lua_pushinteger(L, max_kps);
     lua_setglobal(L, "num_keypoints");
 
 
+    ros::ServiceServer service = priv_nh.advertiseService("load_trained_model", serviceCallback);
 
     image_keypoints = image_transport::ImageTransport(priv_nh).advertise("keypoints_img",1);
     keypoint_pub = priv_nh.advertise<object_keypoint_msgs::ObjectKeyPointArray>("keypoints_dat", 1);

@@ -50,7 +50,8 @@
   <build_depend>image_transport</build_depend>
   <build_depend>darknet_ros_msgs</build_depend>
   <build_depend>dynamic_reconfigure</build_depend>
-  <build_depend>object_keypoint_msgs</build_depend>  
+  <build_depend>object_keypoint_msgs</build_depend>
+  <build_depend>roseus</build_depend>  
 
   <run_depend>roscpp</run_depend>
   <run_depend>rospy</run_depend>
@@ -63,6 +64,7 @@
   <run_depend>darknet_ros_msgs</run_depend>
   <run_depend>dynamic_reconfigure</run_depend>
   <run_depend>object_keypoint_msgs</run_depend>  
+  <run_depend>roseus</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
