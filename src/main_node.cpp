@@ -1,48 +1,12 @@
-#include <ros/ros.h>
-#include <iostream>
-#include <chrono>
-#include <boost/thread/thread.hpp>
-#include <Eigen/Dense>
-
-#include <darknet_ros_msgs/BoundingBoxes.h>
-#include <image_transport/image_transport.h>
-#include <opencv/cv.h>
-#include <opencv2/highgui/highgui.hpp>
-//#include <opencv2/core/core.hpp>
-#include <cv_bridge/cv_bridge.h>
-#include <object_keypoint_msgs/ObjectKeyPointArray.h>
-
-#include <message_filters/subscriber.h>
-#include <message_filters/synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
-
-#include <dynamic_reconfigure/server.h>
-#include <detection_hg/paramConfig.h>
-
-#include <roseus/StringString.h>
-
-extern "C" {
-    #include <lua.h>
-    #include <lualib.h>
-    #include <lauxlib.h>
-    #include <luaT.h>
-    #include <TH/TH.h>
-}
+#include "common_headers.h"
+#include "ros_headers.h"
+#include "lua_utils.h"
+#include "ros_utils.h"
+#include "get_peaks.h"
 
 //ros pubs
 image_transport::Publisher image_keypoints;
 ros::Publisher keypoint_pub;
-
-//lua state
-lua_State *L;
-bool model_load_success = false;
-
-//ros dynamic params
-float min_hm_thresh;
-float font_scale;
-int font_thick;
-int circle_rad;
-int vis_kp_ind;
 
 //rosparams
 int max_kps;
@@ -59,80 +23,40 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
       return;
     }
 
-    cv::Mat read_image, image;
+    cv::Mat read_image;
     try{
         read_image = cv_bridge::toCvShare(img, "bgr8")->image;
     }
     catch (cv_bridge::Exception& e){
       ROS_ERROR("Could not convert from '%s' to 'bgr8'.", img->encoding.c_str());
     }
-    read_image.convertTo(image, CV_32FC3);
-
-    cv::Mat img_bgr[3];
-    cv::split(image, img_bgr);
-
-
-    const int height = read_image.rows;
-    const int width = read_image.cols;
-    const int channs = read_image.channels();
-    const int size = channs*height*width;
-    lua_getglobal(L, "inImage_c1");
-    float* imgData = img_bgr[0].ptr<float>();
-    THFloatStorage* imgStorage = THFloatStorage_newWithData(imgData, size);
-    THFloatTensor* imgTensor = THFloatTensor_newWithStorage2d(imgStorage, 0,
-        height, width,   // size 1, stride 1
-        width, 1);        // size 2, stride 2
-    luaT_pushudata(L, (void*)imgTensor, "torch.FloatTensor");
-    lua_setglobal(L, "inImage_c1");
-    lua_getglobal(L, "inImage_c2");
-    float* imgData1 = img_bgr[1].ptr<float>();
-    THFloatStorage* imgStorage1 = THFloatStorage_newWithData(imgData1, size);
-    THFloatTensor* imgTensor1 = THFloatTensor_newWithStorage2d(imgStorage1, 0,
-        height, width,   // size 1, stride 1
-        width, 1);        // size 2, stride 2
-    luaT_pushudata(L, (void*)imgTensor1, "torch.FloatTensor");
-    lua_setglobal(L, "inImage_c2");
-    lua_getglobal(L, "inImage_c3");
-    float* imgData2 = img_bgr[2].ptr<float>();
-    THFloatStorage* imgStorage2 = THFloatStorage_newWithData(imgData2, size);
-    THFloatTensor* imgTensor2 = THFloatTensor_newWithStorage2d(imgStorage2, 0,
-        height, width,   // size 1, stride 1
-        width, 1);        // size 2, stride 2
-    luaT_pushudata(L, (void*)imgTensor2, "torch.FloatTensor");
-    lua_setglobal(L, "inImage_c3");
-
-    lua_getglobal(L, "loadImage");
-    lua_pcall(L,0,0,0);
-
-
+    loadImage(read_image);
 
     const int xmin = box->bounding_boxes[0].xmin;
     const int xmax = box->bounding_boxes[0].xmax;
     const int ymin = box->bounding_boxes[0].ymin;
     const int ymax = box->bounding_boxes[0].ymax;
-    int cx = abs(xmax+xmin)/2;
-    int cy = abs(ymax+ymin)/2;
-    float scale = std::max(xmax-xmin, ymax-ymin);
-    scale /= 200.0f;
+    loadBBox(xmin, xmax, ymin, ymax);
 
-    lua_getglobal(L, "evaluate");
-    lua_pushinteger(L,cx);
-    lua_pushinteger(L,cy);
-    lua_pushnumber(L,scale);
-    lua_pcall(L,3,0,1);
 
-    lua_getglobal(L, "keypoint_locs");
-    THFloatTensor* keypointTensor = (THFloatTensor*)luaT_toudata(L, -1, "torch.FloatTensor");
-    float* kpts = THFloatTensor_data(keypointTensor);
+    const char* locations = "keypoint_locs";
+    const char* peakvals = "heatmap_peaks";
+    const char* heatmaps = "heatmaps";
+    THFloatTensor *keypointTensor, *hmpeaksTensor, *hmapsTensor;
+    float *kpts, *hmps, *hmaps;
+
+    getUdata(locations, &keypointTensor, &kpts);
     int num_of_keypoint_vis = THFloatTensor_size(keypointTensor,0);
-
-    lua_getglobal(L, "heatmap_peaks");
-    THFloatTensor* hmpeaksTensor = (THFloatTensor*)luaT_toudata(L, -1, "torch.FloatTensor");
-    float* hmps = THFloatTensor_data(hmpeaksTensor);
-    if (THFloatTensor_size(hmpeaksTensor,0) != max_kps) {
+    
+    getUdata(peakvals, &hmpeaksTensor, &hmps);
+    if (THFloatTensor_size(hmpeaksTensor,0) != max_kps){
         ROS_ERROR("something terrible has happened!!");
         return;
     }
+
+    getUdata(heatmaps, &hmapsTensor, &hmaps);
+    std::vector<float> peaks = getPeakCoordinates(hmapsTensor, hmaps);
+
     
     object_keypoint_msgs::ObjectKeyPoints obj_kps;
     cv::Mat keypoint_img = read_image.clone();
@@ -173,40 +97,6 @@ void msgCallback(const sensor_msgs::ImageConstPtr& img, const darknet_ros_msgs::
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
     std::cout << "callBack time: " << duration/1000 << " ms" << std::endl;
     return;
-}
-
-void setDynParams(detection_hg::paramConfig &config, int level) {
-
-    std::cout << "set dynamic params..." << std::endl;
-    min_hm_thresh = config.hm_thresh;
-    vis_kp_ind = config.vis_kp_ind;
-    circle_rad = config.circle_rad;
-    font_thick = config.font_thick;
-    font_scale = config.font_scale;
-
-    lua_pushnumber(L, min_hm_thresh);
-    lua_setglobal(L, "min_hm_thresh");
-
-    return;
-}
-
-bool serviceCallback(roseus::StringString::Request& request, roseus::StringString::Response& response){
-
-    std::string filename = request.str;
-    lua_getglobal(L, "loadModel");
-    lua_pushstring(L, filename.c_str());
-    int model_load = lua_pcall(L, 1, 0 ,0);
-    if (model_load) {
-        fprintf(stderr, "Failed to load model: %s\n", lua_tostring(L, -1));
-        model_load_success = false;
-	return false;
-    }
-    else {
-        std::cout << "------model load success----- " << std::endl;
-	model_load_success = true;
-    }
-
-    return true;
 }
 
 int main (int argc, char** argv){

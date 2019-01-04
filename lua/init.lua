@@ -69,6 +69,7 @@ function evaluate(img_cx, img_cy, img_scale)
 
     keypoint_locs = torch.Tensor(predHMs:size(2), 2)
     heatmap_peaks = torch.Tensor(predHMs:size(2), 1)
+    heatmaps = predHMs:select(1,1)
 
     for i=1,predHMs:size(2) do
         local kp = predHMs:select(2,i):select(1,1)
